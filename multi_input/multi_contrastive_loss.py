@@ -22,6 +22,43 @@ def set_dropout_mf(
         i.layer[1].dropout.p = w        
     return model
 
+def euclidean_dist(x, support_mean):
+    '''
+    Compute euclidean distance between two tensors
+    '''
+    # x: N x D
+    # y: M x D
+    n = x.size(0)
+    m = support_mean.size(0)
+    d = x.size(1)
+    if d != support_mean.size(1):
+        raise Exception
+
+    x = x.unsqueeze(1).expand(n, m, d)
+    support_mean = support_mean.unsqueeze(0).expand(n, m, d)
+
+    #return torch.pow(x - support_mean, 2).sum(2)
+    return ((x - support_mean)*(x-support_mean)).sum(2)
+
+def mahalanobis(x, support_mean, inv_covmat):
+    # create function to calculate Mahalanobis distance
+    n = x.size(0)
+    d = x.size(1)
+
+    #expand to fix th input size
+    # x = x.unsqueeze(0).expand(m, n, d)
+    # support_mean = support_mean.unsqueeze(0).expand(n, m, d)
+
+    maha_dists = []
+    for class_inv_cov, support_class in zip(inv_covmat,support_mean):
+        x_mu = x - support_class.unsqueeze(0).expand(n,d)
+        # print('Shape of x_mu : ',x_mu.shape, 'shape of cov : ',class_inv_cov.shape)
+        # mahal1 = cdist(x_mu,x_mu,metric='mahalanobis')
+        left = np.dot(x_mu, class_inv_cov)
+        mahal = np.dot(left, x_mu.T).diagonal()
+        maha_dists.append(mahal)
+    return torch.from_numpy(np.asarray(maha_dists).T)
+
 class SupConLoss(nn.Module):
     """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
     It also supports the unsupervised contrastive loss in SimCLR"""
